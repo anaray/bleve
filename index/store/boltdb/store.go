@@ -18,6 +18,7 @@
 package boltdb
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -26,14 +27,18 @@ import (
 	"github.com/boltdb/bolt"
 )
 
-const Name = "boltdb"
+const (
+	Name                    = "boltdb"
+	defaultCompactBatchSize = 100
+)
 
 type Store struct {
-	path   string
-	bucket string
-	db     *bolt.DB
-	noSync bool
-	mo     store.MergeOperator
+	path        string
+	bucket      string
+	db          *bolt.DB
+	noSync      bool
+	fillPercent float64
+	mo          store.MergeOperator
 }
 
 func New(mo store.MergeOperator, config map[string]interface{}) (store.KVStore, error) {
@@ -48,6 +53,11 @@ func New(mo store.MergeOperator, config map[string]interface{}) (store.KVStore, 
 	}
 
 	noSync, _ := config["nosync"].(bool)
+
+	fillPercent, ok := config["fillPercent"].(float64)
+	if !ok {
+		fillPercent = bolt.DefaultFillPercent
+	}
 
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
@@ -65,11 +75,12 @@ func New(mo store.MergeOperator, config map[string]interface{}) (store.KVStore, 
 	}
 
 	rv := Store{
-		path:   path,
-		bucket: bucket,
-		db:     db,
-		mo:     mo,
-		noSync: noSync,
+		path:        path,
+		bucket:      bucket,
+		db:          db,
+		mo:          mo,
+		noSync:      noSync,
+		fillPercent: fillPercent,
 	}
 	return &rv, nil
 }
@@ -100,6 +111,46 @@ func (bs *Store) Stats() json.Marshaler {
 	return &stats{
 		s: bs,
 	}
+}
+
+// CompactWithBatchSize removes DictionaryTerm entries with a count of zero (in batchSize batches)
+// Removing entries is a workaround for github issue #374.
+func (bs *Store) CompactWithBatchSize(batchSize int) error {
+	for {
+		cnt := 0
+		err := bs.db.Batch(func(tx *bolt.Tx) error {
+			c := tx.Bucket([]byte(bs.bucket)).Cursor()
+			prefix := []byte("d")
+
+			for k, v := c.Seek(prefix); bytes.HasPrefix(k, prefix); k, v = c.Next() {
+				if bytes.Equal(v, []byte{0}) {
+					cnt++
+					if err := c.Delete(); err != nil {
+						return err
+					}
+					if cnt == batchSize {
+						break
+					}
+				}
+
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		if cnt == 0 {
+			break
+		}
+	}
+	return nil
+}
+
+// Compact calls CompactWithBatchSize with a default batch size of 100.  This is a workaround
+// for github issue #374.
+func (bs *Store) Compact() error {
+	return bs.CompactWithBatchSize(defaultCompactBatchSize)
 }
 
 func init() {
