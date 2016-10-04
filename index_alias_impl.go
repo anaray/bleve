@@ -1,11 +1,16 @@
 //  Copyright (c) 2014 Couchbase, Inc.
-//  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
-//  except in compliance with the License. You may obtain a copy of the License at
-//    http://www.apache.org/licenses/LICENSE-2.0
-//  Unless required by applicable law or agreed to in writing, software distributed under the
-//  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-//  either express or implied. See the License for the specific language governing permissions
-//  and limitations under the License.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// 		http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package bleve
 
@@ -19,6 +24,7 @@ import (
 	"github.com/blevesearch/bleve/document"
 	"github.com/blevesearch/bleve/index"
 	"github.com/blevesearch/bleve/index/store"
+	"github.com/blevesearch/bleve/mapping"
 	"github.com/blevesearch/bleve/search"
 )
 
@@ -251,54 +257,6 @@ func (i *indexAliasImpl) FieldDictPrefix(field string, termPrefix []byte) (index
 	}, nil
 }
 
-func (i *indexAliasImpl) DumpAll() chan interface{} {
-	i.mutex.RLock()
-	defer i.mutex.RUnlock()
-
-	if !i.open {
-		return nil
-	}
-
-	err := i.isAliasToSingleIndex()
-	if err != nil {
-		return nil
-	}
-
-	return i.indexes[0].DumpAll()
-}
-
-func (i *indexAliasImpl) DumpDoc(id string) chan interface{} {
-	i.mutex.RLock()
-	defer i.mutex.RUnlock()
-
-	if !i.open {
-		return nil
-	}
-
-	err := i.isAliasToSingleIndex()
-	if err != nil {
-		return nil
-	}
-
-	return i.indexes[0].DumpDoc(id)
-}
-
-func (i *indexAliasImpl) DumpFields() chan interface{} {
-	i.mutex.RLock()
-	defer i.mutex.RUnlock()
-
-	if !i.open {
-		return nil
-	}
-
-	err := i.isAliasToSingleIndex()
-	if err != nil {
-		return nil
-	}
-
-	return i.indexes[0].DumpFields()
-}
-
 func (i *indexAliasImpl) Close() error {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
@@ -307,7 +265,7 @@ func (i *indexAliasImpl) Close() error {
 	return nil
 }
 
-func (i *indexAliasImpl) Mapping() *IndexMapping {
+func (i *indexAliasImpl) Mapping() mapping.IndexMapping {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
@@ -474,6 +432,7 @@ func createChildSearchRequest(req *SearchRequest) *SearchRequest {
 		Fields:    req.Fields,
 		Facets:    req.Facets,
 		Explain:   req.Explain,
+		Sort:      req.Sort,
 	}
 	return &rv
 }
@@ -568,8 +527,11 @@ func MultiSearch(ctx context.Context, req *SearchRequest, indexes ...Index) (*Se
 		}
 	}
 
-	// first sort it by score
-	sort.Sort(sr.Hits)
+	// sort all hits with the requested order
+	if len(req.Sort) > 0 {
+		sorter := newMultiSearchHitSorter(req.Sort, sr.Hits)
+		sort.Sort(sorter)
+	}
 
 	// now skip over the correct From
 	if req.From > 0 && len(sr.Hits) > req.From {
@@ -644,4 +606,27 @@ func (f *indexAliasImplFieldDict) Next() (*index.DictEntry, error) {
 func (f *indexAliasImplFieldDict) Close() error {
 	defer f.index.mutex.RUnlock()
 	return f.fieldDict.Close()
+}
+
+type multiSearchHitSorter struct {
+	hits          search.DocumentMatchCollection
+	sort          search.SortOrder
+	cachedScoring []bool
+	cachedDesc    []bool
+}
+
+func newMultiSearchHitSorter(sort search.SortOrder, hits search.DocumentMatchCollection) *multiSearchHitSorter {
+	return &multiSearchHitSorter{
+		sort:          sort,
+		hits:          hits,
+		cachedScoring: sort.CacheIsScore(),
+		cachedDesc:    sort.CacheDescending(),
+	}
+}
+
+func (m *multiSearchHitSorter) Len() int      { return len(m.hits) }
+func (m *multiSearchHitSorter) Swap(i, j int) { m.hits[i], m.hits[j] = m.hits[j], m.hits[i] }
+func (m *multiSearchHitSorter) Less(i, j int) bool {
+	c := m.sort.Compare(m.cachedScoring, m.cachedDesc, m.hits[i], m.hits[j])
+	return c < 0
 }

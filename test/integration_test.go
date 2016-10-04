@@ -1,11 +1,16 @@
 //  Copyright (c) 2014 Couchbase, Inc.
-//  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
-//  except in compliance with the License. You may obtain a copy of the License at
-//    http://www.apache.org/licenses/LICENSE-2.0
-//  Unless required by applicable law or agreed to in writing, software distributed under the
-//  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-//  either express or implied. See the License for the specific language governing permissions
-//  and limitations under the License.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// 		http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package test
 
@@ -19,13 +24,9 @@ import (
 	"reflect"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/blevesearch/bleve"
-	bleveIndex "github.com/blevesearch/bleve/index"
-
-	// we must explicitly include any functionality we plan on testing
-	_ "github.com/blevesearch/bleve/analysis/analyzers/keyword_analyzer"
+	"github.com/blevesearch/bleve/mapping"
 
 	// allow choosing alternate kvstores
 	_ "github.com/blevesearch/bleve/config"
@@ -79,7 +80,7 @@ func runTestDir(t *testing.T, dir, datasetName string) {
 		t.Errorf("error reading mapping: %v", err)
 		return
 	}
-	var mapping bleve.IndexMapping
+	var mapping mapping.IndexMappingImpl
 	err = json.Unmarshal(mappingBytes, &mapping)
 	if err != nil {
 		t.Errorf("error unmarshalling mapping: %v", err)
@@ -121,27 +122,19 @@ func runTestDir(t *testing.T, dir, datasetName string) {
 			t.Errorf("error reading data file: %v", err)
 			return
 		}
+		var fileDoc interface{}
+		err = json.Unmarshal(fileBytes, &fileDoc)
+		if err != nil {
+			t.Errorf("error parsing data file as json: %v", err)
+		}
 		filename := fi.Name()
 		ext := filepath.Ext(filename)
 		id := filename[0 : len(filename)-len(ext)]
-		err = index.Index(id, fileBytes)
+		err = index.Index(id, fileDoc)
 		if err != nil {
 			t.Errorf("error indexing data: %v", err)
 			return
 		}
-	}
-
-	indexInternal, _, err := index.Advanced()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if indexInternal, ok := indexInternal.(bleveIndex.AsyncIndex); ok {
-		start := time.Now()
-		err = indexInternal.Wait(5 * time.Second)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Logf("we had to wait for %v", time.Since(start))
 	}
 
 	// read the searches
@@ -165,39 +158,47 @@ func runTestDir(t *testing.T, dir, datasetName string) {
 				t.Errorf("error running search: %v", err)
 			}
 			if res.Total != search.Result.Total {
+				t.Errorf("test error - %s", search.Comment)
 				t.Errorf("test %d - expected total: %d got %d", testNum, search.Result.Total, res.Total)
 				continue
 			}
 			if len(res.Hits) != len(search.Result.Hits) {
+				t.Errorf("test error - %s", search.Comment)
 				t.Errorf("test %d - expected hits len: %d got %d", testNum, len(search.Result.Hits), len(res.Hits))
 				continue
 			}
 			for hi, hit := range search.Result.Hits {
 				if hit.ID != res.Hits[hi].ID {
+					t.Errorf("test error - %s", search.Comment)
 					t.Errorf("test %d - expected hit %d to have ID %s got %s", testNum, hi, hit.ID, res.Hits[hi].ID)
 				}
 				if hit.Fields != nil {
 					if !reflect.DeepEqual(hit.Fields, res.Hits[hi].Fields) {
+						t.Errorf("test error - %s", search.Comment)
 						t.Errorf("test  %d - expected hit %d to have fields %#v got %#v", testNum, hi, hit.Fields, res.Hits[hi].Fields)
 					}
 				}
 				if hit.Fragments != nil {
 					if !reflect.DeepEqual(hit.Fragments, res.Hits[hi].Fragments) {
+						t.Errorf("test error - %s", search.Comment)
 						t.Errorf("test %d - expected hit %d to have fragments %#v got %#v", testNum, hi, hit.Fragments, res.Hits[hi].Fragments)
 					}
 				}
 				if hit.Locations != nil {
 					if !reflect.DeepEqual(hit.Locations, res.Hits[hi].Locations) {
+						t.Errorf("test error - %s", search.Comment)
 						t.Errorf("test %d - expected hit %d to have locations %v got %v", testNum, hi, hit.Locations, res.Hits[hi].Locations)
 					}
 				}
 				// assert that none of the scores were NaN,+Inf,-Inf
 				if math.IsInf(res.Hits[hi].Score, 0) || math.IsNaN(res.Hits[hi].Score) {
+					t.Errorf("test error - %s", search.Comment)
 					t.Errorf("test %d - invalid score %f", testNum, res.Hits[hi].Score)
 				}
 			}
 			if search.Result.Facets != nil {
 				if !reflect.DeepEqual(search.Result.Facets, res.Facets) {
+					t.Errorf("test error - %s", search.Comment)
 					t.Errorf("test %d - expected facets: %#v got %#v", testNum, search.Result.Facets, res.Facets)
 				}
 			}
@@ -205,7 +206,6 @@ func runTestDir(t *testing.T, dir, datasetName string) {
 			for _, hit := range res.Hits {
 				if hit.Index != datasetName {
 					t.Fatalf("expected name: %s, got: %s", datasetName, hit.Index)
-
 				}
 			}
 		}

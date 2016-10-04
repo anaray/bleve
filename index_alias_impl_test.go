@@ -1,3 +1,17 @@
+//  Copyright (c) 2014 Couchbase, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// 		http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package bleve
 
 import (
@@ -11,6 +25,8 @@ import (
 	"github.com/blevesearch/bleve/document"
 	"github.com/blevesearch/bleve/index"
 	"github.com/blevesearch/bleve/index/store"
+	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/numeric"
 	"github.com/blevesearch/bleve/search"
 )
 
@@ -63,29 +79,14 @@ func TestIndexAliasSingle(t *testing.T) {
 		t.Errorf("expected %v, got %v", expectedError, err)
 	}
 
-	res := alias.DumpAll()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpDoc("a")
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpFields()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
 	mapping := alias.Mapping()
 	if mapping != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", mapping)
 	}
 
 	indexStat := alias.Stats()
 	if indexStat != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", indexStat)
 	}
 
 	// now a few things that should work
@@ -152,29 +153,14 @@ func TestIndexAliasSingle(t *testing.T) {
 		t.Errorf("expected %v, got %v", expectedError2, err)
 	}
 
-	res = alias.DumpAll()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpDoc("a")
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpFields()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
 	mapping = alias.Mapping()
 	if mapping != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", mapping)
 	}
 
 	indexStat = alias.Stats()
 	if indexStat != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", indexStat)
 	}
 
 	// now a few things that should work
@@ -239,29 +225,14 @@ func TestIndexAliasSingle(t *testing.T) {
 		t.Errorf("expected %v, got %v", expectedError3, err)
 	}
 
-	res = alias.DumpAll()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpDoc("a")
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpFields()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
 	mapping = alias.Mapping()
 	if mapping != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", mapping)
 	}
 
 	indexStat = alias.Stats()
 	if indexStat != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", indexStat)
 	}
 
 	// now a few things that should work
@@ -327,29 +298,14 @@ func TestIndexAliasClosed(t *testing.T) {
 		t.Errorf("expected %v, got %v", ErrorIndexClosed, err)
 	}
 
-	res := alias.DumpAll()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpDoc("a")
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpFields()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
 	mapping := alias.Mapping()
 	if mapping != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", mapping)
 	}
 
 	indexStat := alias.Stats()
 	if indexStat != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", indexStat)
 	}
 
 	// now a few things that should work
@@ -409,29 +365,14 @@ func TestIndexAliasEmpty(t *testing.T) {
 		t.Errorf("expected %v, got %v", ErrorAliasEmpty, err)
 	}
 
-	res := alias.DumpAll()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpDoc("a")
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpFields()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
 	mapping := alias.Mapping()
 	if mapping != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", mapping)
 	}
 
 	indexStat := alias.Stats()
 	if indexStat != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", indexStat)
 	}
 
 	// now a few things that should work
@@ -451,6 +392,8 @@ func TestIndexAliasEmpty(t *testing.T) {
 }
 
 func TestIndexAliasMulti(t *testing.T) {
+	score1, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(1.0), 0)
+	score2, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(2.0), 0)
 	ei1Count := uint64(7)
 	ei1 := &stubIndex{
 		err:            nil,
@@ -466,6 +409,7 @@ func TestIndexAliasMulti(t *testing.T) {
 				{
 					ID:    "a",
 					Score: 1.0,
+					Sort:  []string{string(score1)},
 				},
 			},
 			MaxScore: 1.0,
@@ -485,6 +429,7 @@ func TestIndexAliasMulti(t *testing.T) {
 				{
 					ID:    "b",
 					Score: 2.0,
+					Sort:  []string{string(score2)},
 				},
 			},
 			MaxScore: 2.0,
@@ -533,29 +478,14 @@ func TestIndexAliasMulti(t *testing.T) {
 		t.Errorf("expected %v, got %v", ErrorAliasMulti, err)
 	}
 
-	res := alias.DumpAll()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpDoc("a")
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
-	res = alias.DumpFields()
-	if res != nil {
-		t.Errorf("expected nil, got %v", res)
-	}
-
 	mapping := alias.Mapping()
 	if mapping != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", mapping)
 	}
 
 	indexStat := alias.Stats()
 	if indexStat != nil {
-		t.Errorf("expected nil, got %v", res)
+		t.Errorf("expected nil, got %v", indexStat)
 	}
 
 	// now a few things that should work
@@ -572,10 +502,12 @@ func TestIndexAliasMulti(t *testing.T) {
 			{
 				ID:    "b",
 				Score: 2.0,
+				Sort:  []string{string(score2)},
 			},
 			{
 				ID:    "a",
 				Score: 1.0,
+				Sort:  []string{string(score1)},
 			},
 		},
 		MaxScore: 2.0,
@@ -601,6 +533,8 @@ func TestIndexAliasMulti(t *testing.T) {
 
 // TestMultiSearchNoError
 func TestMultiSearchNoError(t *testing.T) {
+	score1, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(1.0), 0)
+	score2, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(2.0), 0)
 	ei1 := &stubIndex{err: nil, searchResult: &SearchResult{
 		Status: &SearchStatus{
 			Total:      1,
@@ -613,6 +547,7 @@ func TestMultiSearchNoError(t *testing.T) {
 				Index: "1",
 				ID:    "a",
 				Score: 1.0,
+				Sort:  []string{string(score1)},
 			},
 		},
 		MaxScore: 1.0,
@@ -629,6 +564,7 @@ func TestMultiSearchNoError(t *testing.T) {
 				Index: "2",
 				ID:    "b",
 				Score: 2.0,
+				Sort:  []string{string(score2)},
 			},
 		},
 		MaxScore: 2.0,
@@ -648,11 +584,13 @@ func TestMultiSearchNoError(t *testing.T) {
 				Index: "2",
 				ID:    "b",
 				Score: 2.0,
+				Sort:  []string{string(score2)},
 			},
 			{
 				Index: "1",
 				ID:    "a",
 				Score: 1.0,
+				Sort:  []string{string(score1)},
 			},
 		},
 		MaxScore: 2.0,
@@ -784,6 +722,8 @@ func TestMultiSearchSecondPage(t *testing.T) {
 // 2. no searchers finish before the timeout
 // 3. no searches finish before cancellation
 func TestMultiSearchTimeout(t *testing.T) {
+	score1, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(1.0), 0)
+	score2, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(2.0), 0)
 	ei1 := &stubIndex{
 		name: "ei1",
 		checkRequest: func(req *SearchRequest) error {
@@ -803,6 +743,7 @@ func TestMultiSearchTimeout(t *testing.T) {
 					Index: "1",
 					ID:    "a",
 					Score: 1.0,
+					Sort:  []string{string(score1)},
 				},
 			},
 			MaxScore: 1.0,
@@ -826,6 +767,7 @@ func TestMultiSearchTimeout(t *testing.T) {
 					Index: "2",
 					ID:    "b",
 					Score: 2.0,
+					Sort:  []string{string(score2)},
 				},
 			},
 			MaxScore: 2.0,
@@ -909,6 +851,9 @@ func TestMultiSearchTimeout(t *testing.T) {
 // TestMultiSearchTimeoutPartial tests the case where some indexes exceed
 // the timeout, while others complete successfully
 func TestMultiSearchTimeoutPartial(t *testing.T) {
+	score1, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(1.0), 0)
+	score2, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(2.0), 0)
+	score3, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(3.0), 0)
 	ei1 := &stubIndex{
 		name: "ei1",
 		err:  nil,
@@ -924,6 +869,7 @@ func TestMultiSearchTimeoutPartial(t *testing.T) {
 					Index: "1",
 					ID:    "a",
 					Score: 1.0,
+					Sort:  []string{string(score1)},
 				},
 			},
 			MaxScore: 1.0,
@@ -943,6 +889,7 @@ func TestMultiSearchTimeoutPartial(t *testing.T) {
 					Index: "2",
 					ID:    "b",
 					Score: 2.0,
+					Sort:  []string{string(score2)},
 				},
 			},
 			MaxScore: 2.0,
@@ -967,6 +914,7 @@ func TestMultiSearchTimeoutPartial(t *testing.T) {
 					Index: "3",
 					ID:    "c",
 					Score: 3.0,
+					Sort:  []string{string(score3)},
 				},
 			},
 			MaxScore: 3.0,
@@ -993,11 +941,13 @@ func TestMultiSearchTimeoutPartial(t *testing.T) {
 				Index: "2",
 				ID:    "b",
 				Score: 2.0,
+				Sort:  []string{string(score2)},
 			},
 			{
 				Index: "1",
 				ID:    "a",
 				Score: 1.0,
+				Sort:  []string{string(score1)},
 			},
 		},
 		MaxScore: 2.0,
@@ -1014,6 +964,10 @@ func TestMultiSearchTimeoutPartial(t *testing.T) {
 }
 
 func TestIndexAliasMultipleLayer(t *testing.T) {
+	score1, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(1.0), 0)
+	score2, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(2.0), 0)
+	score3, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(3.0), 0)
+	score4, _ := numeric.NewPrefixCodedInt64(numeric.Float64ToInt64(4.0), 0)
 	ei1 := &stubIndex{
 		name: "ei1",
 		err:  nil,
@@ -1029,6 +983,7 @@ func TestIndexAliasMultipleLayer(t *testing.T) {
 					Index: "1",
 					ID:    "a",
 					Score: 1.0,
+					Sort:  []string{string(score1)},
 				},
 			},
 			MaxScore: 1.0,
@@ -1052,6 +1007,7 @@ func TestIndexAliasMultipleLayer(t *testing.T) {
 					Index: "2",
 					ID:    "b",
 					Score: 2.0,
+					Sort:  []string{string(score2)},
 				},
 			},
 			MaxScore: 2.0,
@@ -1076,6 +1032,7 @@ func TestIndexAliasMultipleLayer(t *testing.T) {
 					Index: "3",
 					ID:    "c",
 					Score: 3.0,
+					Sort:  []string{string(score3)},
 				},
 			},
 			MaxScore: 3.0,
@@ -1096,6 +1053,7 @@ func TestIndexAliasMultipleLayer(t *testing.T) {
 					Index: "4",
 					ID:    "d",
 					Score: 4.0,
+					Sort:  []string{string(score4)},
 				},
 			},
 			MaxScore: 4.0,
@@ -1129,11 +1087,13 @@ func TestIndexAliasMultipleLayer(t *testing.T) {
 				Index: "4",
 				ID:    "d",
 				Score: 4.0,
+				Sort:  []string{string(score4)},
 			},
 			{
 				Index: "1",
 				ID:    "a",
 				Score: 1.0,
+				Sort:  []string{string(score1)},
 			},
 		},
 		MaxScore: 4.0,
@@ -1146,6 +1106,105 @@ func TestIndexAliasMultipleLayer(t *testing.T) {
 	expected.Took = res.Took
 	if !reflect.DeepEqual(res, expected) {
 		t.Errorf("expected %#v, got %#v", expected, res)
+	}
+}
+
+// TestMultiSearchNoError
+func TestMultiSearchCustomSort(t *testing.T) {
+	ei1 := &stubIndex{err: nil, searchResult: &SearchResult{
+		Status: &SearchStatus{
+			Total:      1,
+			Successful: 1,
+			Errors:     make(map[string]error),
+		},
+		Total: 2,
+		Hits: search.DocumentMatchCollection{
+			{
+				Index: "1",
+				ID:    "a",
+				Score: 1.0,
+				Sort:  []string{"albert"},
+			},
+			{
+				Index: "1",
+				ID:    "b",
+				Score: 2.0,
+				Sort:  []string{"crown"},
+			},
+		},
+		MaxScore: 2.0,
+	}}
+	ei2 := &stubIndex{err: nil, searchResult: &SearchResult{
+		Status: &SearchStatus{
+			Total:      1,
+			Successful: 1,
+			Errors:     make(map[string]error),
+		},
+		Total: 2,
+		Hits: search.DocumentMatchCollection{
+			{
+				Index: "2",
+				ID:    "c",
+				Score: 2.5,
+				Sort:  []string{"frank"},
+			},
+			{
+				Index: "2",
+				ID:    "d",
+				Score: 3.0,
+				Sort:  []string{"zombie"},
+			},
+		},
+		MaxScore: 3.0,
+	}}
+
+	sr := NewSearchRequest(NewTermQuery("test"))
+	sr.SortBy([]string{"name"})
+	expected := &SearchResult{
+		Status: &SearchStatus{
+			Total:      2,
+			Successful: 2,
+			Errors:     make(map[string]error),
+		},
+		Request: sr,
+		Total:   4,
+		Hits: search.DocumentMatchCollection{
+			{
+				Index: "1",
+				ID:    "a",
+				Score: 1.0,
+				Sort:  []string{"albert"},
+			},
+			{
+				Index: "1",
+				ID:    "b",
+				Score: 2.0,
+				Sort:  []string{"crown"},
+			},
+			{
+				Index: "2",
+				ID:    "c",
+				Score: 2.5,
+				Sort:  []string{"frank"},
+			},
+			{
+				Index: "2",
+				ID:    "d",
+				Score: 3.0,
+				Sort:  []string{"zombie"},
+			},
+		},
+		MaxScore: 3.0,
+	}
+
+	results, err := MultiSearch(context.Background(), sr, ei1, ei2)
+	if err != nil {
+		t.Error(err)
+	}
+	// cheat and ensure that Took field matches since it invovles time
+	expected.Took = results.Took
+	if !reflect.DeepEqual(results, expected) {
+		t.Errorf("expected %v, got %v", expected, results)
 	}
 }
 
@@ -1221,23 +1280,11 @@ func (i *stubIndex) FieldDictPrefix(field string, termPrefix []byte) (index.Fiel
 	return nil, i.err
 }
 
-func (i *stubIndex) DumpAll() chan interface{} {
-	return nil
-}
-
-func (i *stubIndex) DumpDoc(id string) chan interface{} {
-	return nil
-}
-
-func (i *stubIndex) DumpFields() chan interface{} {
-	return nil
-}
-
 func (i *stubIndex) Close() error {
 	return i.err
 }
 
-func (i *stubIndex) Mapping() *IndexMapping {
+func (i *stubIndex) Mapping() mapping.IndexMapping {
 	return nil
 }
 

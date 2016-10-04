@@ -1,13 +1,16 @@
 //  Copyright (c) 2016 Couchbase, Inc.
-//  Licensed under the Apache License, Version 2.0 (the "License");
-//  you may not use this file except in compliance with the
-//  License. You may obtain a copy of the License at
-//    http://www.apache.org/licenses/LICENSE-2.0
-//  Unless required by applicable law or agreed to in writing,
-//  software distributed under the License is distributed on an "AS
-//  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
-//  express or implied. See the License for the specific language
-//  governing permissions and limitations under the License.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// 		http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 // Package moss provides a KVStore implementation based on the
 // github.com/couchbaselabs/moss library.
@@ -35,10 +38,13 @@ type Store struct {
 	m       sync.Mutex
 	ms      moss.Collection
 	mo      store.MergeOperator
-	llstore store.KVStore
+	llstore store.KVStore // May be nil (ex: when using mossStore).
+	llstats statsFunc     // May be nil.
 
 	s *stats
 }
+
+type statsFunc func() map[string]interface{}
 
 // New initializes a moss storage with values from the optional
 // config["mossCollectionOptions"] (a JSON moss.CollectionOptions).
@@ -102,6 +108,8 @@ func New(mo store.MergeOperator, config map[string]interface{}) (
 	}
 
 	var llStore store.KVStore
+	var llStats statsFunc
+
 	if options.LowerLevelInit == nil &&
 		options.LowerLevelUpdate == nil &&
 		mossLowerLevelStoreName != "" {
@@ -127,7 +135,7 @@ func New(mo store.MergeOperator, config map[string]interface{}) (
 			mossLowerLevelMaxBatchSize = uint64(mossLowerLevelMaxBatchSizeF)
 		}
 
-		lowerLevelInit, lowerLevelUpdate, lowerLevelStore, err :=
+		lowerLevelInit, lowerLevelUpdate, lowerLevelStore, lowerLevelStats, err :=
 			initLowerLevelStore(config,
 				mossLowerLevelStoreName,
 				mossLowerLevelStoreConfig,
@@ -139,7 +147,9 @@ func New(mo store.MergeOperator, config map[string]interface{}) (
 
 		options.LowerLevelInit = lowerLevelInit
 		options.LowerLevelUpdate = lowerLevelUpdate
+
 		llStore = lowerLevelStore
+		llStats = lowerLevelStats
 	}
 
 	// --------------------------------------------------
@@ -156,6 +166,7 @@ func New(mo store.MergeOperator, config map[string]interface{}) (
 		ms:      ms,
 		mo:      mo,
 		llstore: llStore,
+		llstats: llStats,
 	}
 	rv.s = &stats{s: &rv}
 	return &rv, nil

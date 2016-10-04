@@ -1,11 +1,16 @@
 //  Copyright (c) 2014 Couchbase, Inc.
-//  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
-//  except in compliance with the License. You may obtain a copy of the License at
-//    http://www.apache.org/licenses/LICENSE-2.0
-//  Unless required by applicable law or agreed to in writing, software distributed under the
-//  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-//  either express or implied. See the License for the specific language governing permissions
-//  and limitations under the License.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// 		http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package search
 
@@ -18,6 +23,7 @@ import (
 type FacetBuilder interface {
 	Update(index.FieldTerms)
 	Result() *FacetResult
+	Field() string
 }
 
 type FacetsBuilder struct {
@@ -37,12 +43,27 @@ func (fb *FacetsBuilder) Add(name string, facetBuilder FacetBuilder) {
 }
 
 func (fb *FacetsBuilder) Update(docMatch *DocumentMatch) error {
-	fieldTerms, err := fb.indexReader.DocumentFieldTerms(docMatch.ID)
-	if err != nil {
-		return err
+	var fields []string
+	for _, facetBuilder := range fb.facets {
+		fields = append(fields, facetBuilder.Field())
+	}
+
+	if len(fields) > 0 {
+		// find out which fields haven't been loaded yet
+		fieldsToLoad := docMatch.CachedFieldTerms.FieldsNotYetCached(fields)
+		// look them up
+		fieldTerms, err := fb.indexReader.DocumentFieldTerms(docMatch.IndexInternalID, fieldsToLoad)
+		if err != nil {
+			return err
+		}
+		// cache these as well
+		if docMatch.CachedFieldTerms == nil {
+			docMatch.CachedFieldTerms = make(map[string][]string)
+		}
+		docMatch.CachedFieldTerms.Merge(fieldTerms)
 	}
 	for _, facetBuilder := range fb.facets {
-		facetBuilder.Update(fieldTerms)
+		facetBuilder.Update(docMatch.CachedFieldTerms)
 	}
 	return nil
 }
